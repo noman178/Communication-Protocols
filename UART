@@ -1,0 +1,166 @@
+#include "stm32f4xx.h"                  // Device header
+//#include "lcd.h"
+#include<string.h>
+void initGPIO(void);
+void USART2_Init(void);									// Initialize USART2, 9600, NO, 7, 1
+void USART2_Transmit(void);							// Transmit Data USART2
+void USART2_Receive(void);
+void DelayMS(int);
+void clearLCD(void);
+void setCursorLCD(int, int);
+void displayControlLCD(int);
+void writeLCD(char data);
+#define UART_TX_BUFFER_SIZE 100
+#define UART_RX_BUFFER_SIZE 100
+uint16_t Rx_index = 0;
+char UART_TX_BUFFER[UART_TX_BUFFER_SIZE];
+char UART_RX_BUFFER[UART_RX_BUFFER_SIZE];
+int main(void){
+	__disable_irq();
+	USART2_Init();
+	//strcpy(UART_TX_BUFFER, "Hello World!\n");
+	//UART_TX_BUFFER = "Hello..";
+	//UART_TX_BUFFER = "ABC";
+	//DelayMS(1000);
+	//clearLCD();
+	//displayControlLCD(1);
+	NVIC_EnableIRQ(USART2_IRQn);
+	__enable_irq();
+	while(1){
+	//	setCursorLCD(0,0);
+		//strcpy(UART_TX_BUFFER, "Hello Worl!\n");
+		//USART2_Transmit();
+		//USART2_Receive();
+		//writeLCD('A');
+	//GPIOA->ODR = 0X01;
+	//DelayMS(1);
+	//GPIOA->ODR = 0X00;
+	//DelayMS(1000);
+		//DelayMS(200);
+	}
+}
+
+void DelayMS(int Delay){
+	for(int j= 0; j < Delay; j++){
+		for(int i = 0; i<7999; i++);
+	}
+}
+
+void clearLCD(void){
+	GPIOC->ODR |=  0x0020;								// pull EN HIGH
+	GPIOC->ODR &= ~0x0008;								// pull RS LOW, Command Mode
+	GPIOD->ODR &= ~0x00ff;
+	GPIOD->ODR |=  0x0001;
+	GPIOC->ODR &= ~0x0020;								// pull EN LOW
+	DelayMS(200);
+	GPIOC->ODR |=  0x0020;								// pull EN HIGH
+}
+
+void setCursorLCD(int row, int column){
+	GPIOC->ODR &=  ~(0x0008);								// pull RS LOW, CMD Mode
+	GPIOD->ODR &= ~0xFFFF;								// clear Previous Data
+	GPIOD->ODR |=  row | 0x80;
+	GPIOC->ODR |= (0x0020);								// pull EN HIGH
+	DelayMS(5);
+	GPIOC->ODR &= ~(0x0020);								// pull EN LOW
+	
+	
+	
+}
+void displayControlLCD(int a){
+	
+	GPIOC->ODR &= ~0x0008;								// pull RS LOW, Command Mode
+	GPIOD->ODR &= ~0x00ff;
+	GPIOD->ODR |=  0x0002;
+	GPIOC->ODR |=  0x0020;								// pull EN HIGH
+	DelayMS(5);
+	GPIOC->ODR |=  0x0020;								// pull EN HIGH
+}
+
+void writeLCD(char data){
+	GPIOC->ODR |=  0x0008;								// pull RS HIGH, DATA Mode
+	GPIOD->ODR &= ~0xFFFF;								// clear Previous Data
+	GPIOD->ODR |=  data;
+	GPIOC->ODR |= (0x0020);								// pull EN HIGH
+	DelayMS(5);
+	GPIOC->ODR &= ~(0x0020);								// pull EN LOW
+	
+	
+}
+
+void initGPIO(void){
+	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;	// GPIOA Enable
+	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;	// GPIOC Enable
+	RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;	// GPIOC Enable
+	
+	GPIOA->OSPEEDR   |= 0X00000003;				// very HIGH speed
+	GPIOA->AFR[0]    |= 0X00007000;
+	
+	// PA2-TX, PA3-RX Setting
+	GPIOA->MODER     |= 0X00000081;		    // PA2, PA3 Alternate funcrion for RX
+	// LCD Pin Settings
+	GPIOC->OSPEEDR   |= 0x00000FC0;				// PC3(RS), PC4(RW), PC5(EN) very HIGH speed
+	GPIOC->MODER		 |= 0x0540;						// Make PC3, PC4, PC5 OUTPUT
+	GPIOD->OSPEEDR   |= 0x0000FFFF;				// PD0-PD7 (D0 - D7) very HIGH speed
+	GPIOD->MODER		 |= 0x00005555;				// Make PD0-PD7  OUTPUT
+}
+
+void USART2_Init(void){	// PA2 is USART2 TX, PA3 is RX
+  initGPIO();
+																						// UASRT Setting 
+	
+	// USART CLOCK ENABLE
+	RCC->APB1ENR |= RCC_APB1ENR_USART2EN;		
+
+	//BUAD RATE SETTING
+	USART2->BRR = 0X0683;//0xEA6;			// 9600 BUAD RATE
+	//USART3->BRR = (234<<4) | (6<<0);			// 9600 BUAD RATE
+		USART2->CR1 = 0x00;
+	//TX ENABLE
+	USART2->CR1 |= USART_CR1_RE;			// TX/RX enable
+	USART2->CR2 = 0x00;
+	//USART2 RESET
+	//RCC->APB1RSTR |= 0X20000; 
+	
+	// Enable Parity
+	//USART2->CR1 |= USART_CR1_PCE;
+	// Even parity
+	//USART2->CR1 &= ~(USART_CR1_PS);
+	USART2->CR1 |= USART_CR1_RXNEIE;					// Generate INTERRUPT when TXE is SET
+		//USART2 ENABLE
+
+	USART2->CR1 |= USART_CR1_UE;	
+}
+
+void USART2_IRQHandler(void){
+	if(USART2->SR & USART_SR_RXNE){
+		UART_RX_BUFFER[Rx_index] = USART2->DR;
+	
+	if(Rx_index > UART_RX_BUFFER_SIZE)Rx_index=0;
+	else Rx_index++;
+	}
+	USART2->SR &= ~USART_SR_RXNE;
+}
+
+
+																					/* Not Used */
+
+void USART2_Receive(){
+	// Data to be Received
+	int Rx_index = 0;
+	do{
+		while(!(USART2->SR & USART_SR_RXNE));
+		UART_RX_BUFFER[Rx_index] = USART2->DR;
+		Rx_index++;
+	}while(UART_RX_BUFFER[Rx_index-1] != '\n');
+}
+
+void USART2_Transmit(){
+	// Data to be Transmitted
+//	USART2->DR = UART_TX_BUFFER[0];
+	for(int i = 0; UART_TX_BUFFER[i] != '\0'; i++){
+		USART2->DR = UART_TX_BUFFER[i];
+		while(!(USART2->SR & USART_SR_TC));		// wait until TX complete{
+		USART2->SR &= ~(1<<6);
+	}
+}
