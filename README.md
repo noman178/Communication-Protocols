@@ -1,1 +1,2 @@
-This is mod 1 made
+1. modifying for the 2nd commit
+2. adding the 3rd
